@@ -1,0 +1,177 @@
+# TeleChat
+
+> Chat with your Telegram contacts through your bot, a self-hosted web interface for Telegram DMs.
+
+TeleChat monitors incoming DMs to your Telegram bot (and optionally your personal account), auto-replies when appropriate, stores every message & media locally, and gives you a beautiful **web chat UI** to reply, forward, and manage conversations.
+
+---
+
+## ✨ Features
+
+| Feature | Details |
+|---|---|
+| **Two modes** | **Bot only** (just `BOT_TOKEN`) or **Userbot + Bot** (monitors personal account too) |
+| **Smart AFK reply** | Auto-reply only on first contact or after 2h of silence, no spamming |
+| **Profile photos** | Real Telegram DPs displayed in the chat sidebar and headers |
+| **Web chat UI** | Telegram style dark interface at `http://localhost:8080` |
+| **Dynamic branding** | UI title & logo auto-set from your bot's name, no hardcoded names |
+| **Real time WebSocket** | Messages appear instantly, no page refresh needed |
+| **Resizable sidebar** | Drag the sidebar edge to resize; mobile-optimized with full-width sidebar |
+| **Emoji picker** | Full emoji tray built into the chat input |
+| **Media support** | Photos, videos, audio, voice, documents, stickers with inline previews |
+| **File send** | Attach & send any file from the web UI |
+| **Reply to messages** | Double click a message to reply (uses `reply_to_message_id`) |
+| **Multi select** | Click select multiple messages, then **Copy / Delete / Forward** |
+| **Delete from Telegram** | Deleting messages removes them from the actual Telegram chat too |
+| **Forward** | Forward selected messages to other users |
+| **Scroll history** | Loads messages in batches; scroll up to load more |
+| **Local storage** | All messages in JSON, all media in folders named `FullName$$UserId` |
+| **Graceful shutdown** | Ctrl+C cleanly stops everything; port in use gives a clear error |
+
+---
+
+## 📂 Project Structure
+
+```
+├── .env                  # your credentials (create from .env.example)
+├── .env.example          # template
+├── .gitignore
+├── requirements.txt
+├── bot.py                # entry point, starts everything
+├── src/
+│   ├── config.py         # all settings & paths
+│   ├── clients.py        # client factory (HttpBot or Telethon)
+│   ├── handlers.py       # incoming message handlers + afk logic
+│   ├── storage.py        # JSON read/write for users & messages
+│   ├── http_bot.py       # lightweight HTTP Bot API client (no Telethon)
+│   └── server.py         # aiohttp REST API + WebSocket + static
+├── web/
+│   ├── index.html        # chat UI
+│   ├── css/style.css     # dark theme styles
+│   └── js/app.js         # frontend logic
+├── data/                 # created at runtime
+│   ├── users.json
+│   ├── avatars/          # cached profile photos
+│   └── chats/
+│       └── {FullName$$UserId}/
+│           ├── messages.json
+│           └── media/
+└── sessions/             # Telethon .session files (only when create_user_bot=True)
+```
+
+---
+
+## 🚀 Setup
+
+### 1. Get a bot token
+
+Create a bot via [@BotFather](https://t.me/BotFather) then `/newbot` and copy the token.
+
+### 2. Configure
+
+```bash
+cp .env.example .env
+```
+
+**Minimum `.env` for bot only mode** (no API_ID / API_HASH needed):
+```ini
+BOT_TOKEN=123456:ABC...
+CREATE_USER_BOT=False
+```
+
+**Full `.env` for userbot + bot mode:**
+```ini
+BOT_TOKEN=123456:ABC...
+CREATE_USER_BOT=True
+API_ID=12345678
+API_HASH=abcdef1234567890
+PHONE_NUMBER=+91XXXXXXXXXX
+```
+
+> `API_ID` and `API_HASH` are free from [my.telegram.org](https://my.telegram.org) under API Development Tools.
+
+### 3. Add allowed users
+
+Open `src/config.py` and add Telegram user IDs:
+```python
+allowed_users = [123456789, 987654321]
+```
+
+> Tip: Send `/start` to [@userinfobot](https://t.me/userinfobot) to get your user ID.
+
+### 4. Install & run
+
+```bash
+pip install -r requirements.txt
+python bot.py
+```
+
+If using `CREATE_USER_BOT=True`, Telethon will ask for your phone's OTP code on first run.
+
+### 5. Open the chat
+
+Visit **http://127.0.0.1:8080** in your browser. The page title will automatically show your bot's name.
+
+---
+
+## 🎮 Usage
+
+| Action | How |
+|---|---|
+| **View chats** | Sidebar shows all users who've messaged the bot |
+| **Reply** | Double click a message to set reply, then type & press Enter |
+| **Send file** | Click 📎, select file(s) |
+| **Emoji** | Click 😊 button for the emoji picker |
+| **Select messages** | Click ☑ in the header, then click messages |
+| **Copy** | Select then **Copy** |
+| **Delete** | Select then **Delete** (removes from Telegram too) |
+| **Forward** | Select then **Forward**, pick user(s), **Send** |
+| **Resize sidebar** | Drag the right edge of the sidebar |
+| **Load older msgs** | Scroll up or click "Load older messages..." |
+| **Stop the bot** | Press **Ctrl+C** in the terminal |
+
+---
+
+## ⚙️ Configuration
+
+All tunables live in `src/config.py`:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `messages_per_load` | `30` | Messages fetched per scroll batch |
+| `allowed_users` | `[]` | Telegram user IDs that can reach you |
+| `afk_message` | _"will reply very soon..."_ | Auto reply text |
+| `web_host` | `127.0.0.1` | Web server bind address |
+| `web_port` | `8080` | Web server port |
+
+In `src/handlers.py`:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `afk_cooldown_hours` | `2` | Hours before the afk message is sent again to the same user |
+
+In `.env`:
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `BOT_TOKEN` | ✅ Always | Telegram bot token from @BotFather |
+| `CREATE_USER_BOT` | ✅ Always | `True` to also monitor personal account DMs |
+| `API_ID` | Only if `True` | From my.telegram.org |
+| `API_HASH` | Only if `True` | From my.telegram.org |
+| `PHONE_NUMBER` | Only if `True` | Your Telegram phone number |
+| `WEB_PORT` | No (default 8080) | Web UI port |
+
+---
+
+## 🔒 Security Notes
+
+- The web UI runs on **localhost only**, no authentication needed.
+- Session files in `sessions/` give full access to your Telegram account. **Never share them.**
+- `.env` contains secrets, it's git ignored by default.
+- Profile photo cache in `data/avatars/` is also git ignored.
+
+---
+
+## 📜 License
+
+MIT, use however you like.

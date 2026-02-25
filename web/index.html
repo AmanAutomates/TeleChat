@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title id="pageTitle">Chat</title>
+    <meta name="description" content="Private Telegram chat interface" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+
+<body>
+    <div class="app" id="app">
+        <!-- ─── Sidebar ─────────────────────────────────────── -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span class="logo-text" id="logoText">Chat</span>
+                </div>
+                <div class="search-wrap">
+                    <svg class="search-icon" viewBox="0 0 24 24" width="18" height="18">
+                        <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2" />
+                        <line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" />
+                    </svg>
+                    <input id="searchInput" class="search-input" placeholder="Search chats…" autocomplete="off" />
+                </div>
+            </div>
+            <div class="chat-list" id="chatList">
+                <div class="empty-state" id="emptyUsers">
+                    <p>No chats yet</p>
+                    <span>Messages from allowed users will appear here</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- sidebar resize handle -->
+        <div class="sidebar-resize" id="sidebarResize"></div>
+
+        <!-- ─── Chat area ───────────────────────────────────── -->
+        <main class="chat-area" id="chatArea">
+            <!-- placeholder -->
+            <div class="no-chat" id="noChat">
+                <div class="no-chat-inner">
+                    <div class="no-chat-icon">💬</div>
+                    <h2>Select a chat</h2>
+                    <p>Pick a conversation from the sidebar to start chatting</p>
+                </div>
+            </div>
+
+            <!-- active chat -->
+            <div class="active-chat hidden" id="activeChat">
+                <!-- header -->
+                <div class="chat-header" id="chatHeader">
+                    <button class="back-btn" id="backBtn" title="Back">
+                        <svg viewBox="0 0 24 24" width="22" height="22">
+                            <path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </button>
+                    <div class="chat-header-avatar" id="headerAvatar"></div>
+                    <div class="chat-header-info">
+                        <span class="chat-header-name" id="headerName"></span>
+                        <span class="chat-header-status" id="headerStatus"></span>
+                    </div>
+                    <div class="chat-header-actions">
+                        <button class="icon-btn" id="selectModeBtn" title="Select messages">
+                            <svg viewBox="0 0 24 24" width="20" height="20">
+                                <path d="M9 11l3 3L22 4" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round" />
+                                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- selection bar -->
+                <div class="selection-bar hidden" id="selectionBar">
+                    <span class="sel-count" id="selCount">0 selected</span>
+                    <div class="sel-actions">
+                        <button class="sel-btn" id="selCopy" title="Copy"><svg viewBox="0 0 24 24" width="18"
+                                height="18">
+                                <rect x="9" y="9" width="13" height="13" rx="2" fill="none" stroke="currentColor"
+                                    stroke-width="2" />
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" fill="none"
+                                    stroke="currentColor" stroke-width="2" />
+                            </svg> Copy</button>
+                        <button class="sel-btn" id="selForward" title="Forward"><svg viewBox="0 0 24 24" width="18"
+                                height="18">
+                                <path
+                                    d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"
+                                    fill="none" stroke="currentColor" stroke-width="2" />
+                            </svg> Forward</button>
+                        <button class="sel-btn danger" id="selDelete" title="Delete"><svg viewBox="0 0 24 24" width="18"
+                                height="18">
+                                <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2" />
+                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" fill="none"
+                                    stroke="currentColor" stroke-width="2" />
+                                <path d="M10 11v6M14 11v6M9 6V3h6v3" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" />
+                            </svg> Delete</button>
+                        <button class="sel-btn" id="selCancel">✕ Cancel</button>
+                    </div>
+                </div>
+
+                <!-- messages -->
+                <div class="messages-wrap" id="messagesWrap">
+                    <div class="load-more hidden" id="loadMore">
+                        <button class="load-more-btn" id="loadMoreBtn">Load older messages…</button>
+                    </div>
+                    <div class="messages" id="messages"></div>
+                </div>
+
+                <!-- reply bar -->
+                <div class="reply-bar hidden" id="replyBar">
+                    <div class="reply-preview">
+                        <span class="reply-label">Replying to</span>
+                        <span class="reply-text" id="replyText"></span>
+                    </div>
+                    <button class="reply-close" id="replyClose">✕</button>
+                </div>
+
+                <!-- input area -->
+                <div class="input-area" id="inputArea">
+                    <button class="icon-btn" id="attachBtn" title="Attach file">
+                        <svg viewBox="0 0 24 24" width="22" height="22">
+                            <path
+                                d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                        </svg>
+                    </button>
+                    <div class="input-field-wrap">
+                        <textarea id="msgInput" class="msg-input" placeholder="Write a message…" rows="1"></textarea>
+                    </div>
+                    <button class="icon-btn" id="emojiBtn" title="Emoji">
+                        <svg viewBox="0 0 24 24" width="22" height="22">
+                            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" />
+                            <path d="M8 14s1.5 2 4 2 4-2 4-2" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" />
+                            <line x1="9" y1="9" x2="9.01" y2="9" stroke="currentColor" stroke-width="2.5"
+                                stroke-linecap="round" />
+                            <line x1="15" y1="9" x2="15.01" y2="9" stroke="currentColor" stroke-width="2.5"
+                                stroke-linecap="round" />
+                        </svg>
+                    </button>
+                    <button class="send-btn" id="sendBtn" title="Send">
+                        <svg viewBox="0 0 24 24" width="22" height="22">
+                            <line x1="22" y1="2" x2="11" y2="13" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round" />
+                            <polygon points="22 2 15 22 11 13 2 9 22 2" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linejoin="round" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- file input (hidden) -->
+        <input type="file" id="fileInput" class="hidden-file" multiple />
+
+        <!-- emoji picker overlay -->
+        <div class="emoji-picker hidden" id="emojiPicker">
+            <div class="emoji-tabs" id="emojiTabs"></div>
+            <div class="emoji-search-wrap">
+                <input class="emoji-search" id="emojiSearch" placeholder="Search emoji…" autocomplete="off" />
+            </div>
+            <div class="emoji-grid" id="emojiGrid"></div>
+        </div>
+
+        <!-- forward modal -->
+        <div class="modal-overlay hidden" id="forwardModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>Forward to…</h3>
+                    <button class="modal-close" id="forwardClose">✕</button>
+                </div>
+                <div class="modal-body" id="forwardUserList"></div>
+                <div class="modal-footer">
+                    <button class="btn-primary" id="forwardConfirm">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- media viewer -->
+        <div class="media-viewer hidden" id="mediaViewer">
+            <button class="media-close" id="mediaClose">✕</button>
+            <div class="media-content" id="mediaContent"></div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+
+</html>
