@@ -67,6 +67,15 @@
                         <span class="chat-header-status" id="headerStatus"></span>
                     </div>
                     <div class="chat-header-actions">
+                        <button class="icon-btn hidden" id="groupInfoBtn" title="Group Info">
+                            <svg viewBox="0 0 24 24" width="20" height="20">
+                                <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" />
+                                <line x1="12" y1="16" x2="12" y2="12" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" />
+                                <line x1="12" y1="8" x2="12.01" y2="8" fill="none" stroke="currentColor"
+                                    stroke-width="3" stroke-linecap="round" />
+                            </svg>
+                        </button>
                         <button class="icon-btn" id="selectModeBtn" title="Select messages">
                             <svg viewBox="0 0 24 24" width="20" height="20">
                                 <path d="M9 11l3 3L22 4" fill="none" stroke="currentColor" stroke-width="2"
@@ -74,6 +83,13 @@
                                 <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" fill="none"
                                     stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                     stroke-linejoin="round" />
+                            </svg>
+                        </button>
+                        <button class="icon-btn" id="chatSettingsBtn" title="Chat Settings">
+                            <svg viewBox="0 0 24 24" width="20" height="20">
+                                <circle cx="12" cy="5" r="2" fill="currentColor" />
+                                <circle cx="12" cy="12" r="2" fill="currentColor" />
+                                <circle cx="12" cy="19" r="2" fill="currentColor" />
                             </svg>
                         </button>
                     </div>
@@ -125,6 +141,12 @@
                     <button class="reply-close" id="replyClose">✕</button>
                 </div>
 
+                <!-- file preview bar -->
+                <div class="file-preview-bar hidden" id="filePreviewBar">
+                    <div class="file-preview-list" id="filePreviewList"></div>
+                    <button class="reply-close" id="fileClearBtn">✕</button>
+                </div>
+
                 <!-- input area -->
                 <div class="input-area" id="inputArea">
                     <button class="icon-btn" id="attachBtn" title="Attach file">
@@ -135,20 +157,22 @@
                                 stroke-linejoin="round" />
                         </svg>
                     </button>
-                    <div class="input-field-wrap">
+                    <div class="input-field-wrap" id="inputFieldWrap">
                         <textarea id="msgInput" class="msg-input" placeholder="Write a message…" rows="1"></textarea>
                     </div>
-                    <button class="icon-btn" id="emojiBtn" title="Emoji">
-                        <svg viewBox="0 0 24 24" width="22" height="22">
-                            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" />
-                            <path d="M8 14s1.5 2 4 2 4-2 4-2" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" />
-                            <line x1="9" y1="9" x2="9.01" y2="9" stroke="currentColor" stroke-width="2.5"
-                                stroke-linecap="round" />
-                            <line x1="15" y1="9" x2="15.01" y2="9" stroke="currentColor" stroke-width="2.5"
-                                stroke-linecap="round" />
-                        </svg>
-                    </button>
+                    <div class="emoji-btn-wrap" id="emojiBtnWrap">
+                        <button class="icon-btn" id="emojiBtn" title="Emoji">
+                            <svg viewBox="0 0 24 24" width="22" height="22">
+                                <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" />
+                                <path d="M8 14s1.5 2 4 2 4-2 4-2" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" />
+                                <line x1="9" y1="9" x2="9.01" y2="9" stroke="currentColor" stroke-width="2.5"
+                                    stroke-linecap="round" />
+                                <line x1="15" y1="9" x2="15.01" y2="9" stroke="currentColor" stroke-width="2.5"
+                                    stroke-linecap="round" />
+                            </svg>
+                        </button>
+                    </div>
                     <button class="send-btn" id="sendBtn" title="Send">
                         <svg viewBox="0 0 24 24" width="22" height="22">
                             <line x1="22" y1="2" x2="11" y2="13" stroke="currentColor" stroke-width="2"
@@ -187,10 +211,82 @@
             </div>
         </div>
 
+        <!-- edit history modal -->
+        <div class="modal-overlay hidden" id="editHistoryModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>Edit history</h3>
+                    <button class="modal-close" id="editHistoryClose">✕</button>
+                </div>
+                <div class="modal-body" id="editHistoryBody"></div>
+            </div>
+        </div>
+
+        <!-- edit message modal -->
+        <div class="modal-overlay hidden" id="editModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>Edit message</h3>
+                    <button class="modal-close" id="editModalClose">✕</button>
+                </div>
+                <div class="modal-body" style="padding:16px;">
+                    <textarea id="editMsgInput" class="msg-input" rows="3" style="width:100%;"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-primary" id="editMsgSave">Save</button>
+                </div>
+            </div>
+        </div>
+
         <!-- media viewer -->
         <div class="media-viewer hidden" id="mediaViewer">
             <button class="media-close" id="mediaClose">✕</button>
             <div class="media-content" id="mediaContent"></div>
+        </div>
+
+        <!-- group info modal -->
+        <div class="modal-overlay hidden" id="groupInfoModal">
+            <div class="modal" style="max-height: 80vh; overflow-y: auto;">
+                <div class="modal-header">
+                    <h3>Group Info</h3>
+                    <button class="modal-close"
+                        onclick="document.getElementById('groupInfoModal').classList.add('hidden')">✕</button>
+                </div>
+                <div class="modal-body" id="groupInfoBody" style="padding: 16px;">
+                    Loading...
+                </div>
+            </div>
+        </div>
+
+        <!-- chat settings modal -->
+        <div class="modal-overlay hidden" id="chatSettingsModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>Chat Settings</h3>
+                    <button class="modal-close"
+                        onclick="document.getElementById('chatSettingsModal').classList.add('hidden')">✕</button>
+                </div>
+                <div class="modal-body" id="chatSettingsBody"
+                    style="padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+                    <!-- options injected -->
+                </div>
+            </div>
+        </div>
+
+        <!-- custom dialog modal -->
+        <div class="modal-overlay hidden" id="customDialogModal" style="z-index: 9999;">
+            <div class="modal" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h3 id="customDialogTitle">Confirm</h3>
+                    <button class="modal-close" id="customDialogClose">✕</button>
+                </div>
+                <div class="modal-body" id="customDialogBody"
+                    style="padding: 16px; font-size: 14px; white-space: pre-wrap;">
+                </div>
+                <div class="modal-footer" id="customDialogFooter"
+                    style="display: flex; gap: 8px; justify-content: flex-end;">
+                </div>
+            </div>
         </div>
     </div>
 

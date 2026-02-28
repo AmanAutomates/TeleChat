@@ -21,11 +21,16 @@ TeleChat monitors incoming DMs to your Telegram bot (and optionally your persona
 | **Media support** | Photos, videos, audio, voice, documents, stickers with inline previews |
 | **File send** | Attach & send any file from the web UI |
 | **Reply to messages** | Double click a message to reply (uses `reply_to_message_id`) |
-| **Multi select** | Click select multiple messages, then **Copy / Delete / Forward** |
-| **Delete from Telegram** | Deleting messages removes them from the actual Telegram chat too |
+| **Group Support** | Tracks group & supergroup conversations natively |
+| **Admin Actions** | Moderation tools (Kick/Ban users) built right into the UI for groups |
+| **Group Tracker** | Dedicated _Info_ button to display real-time active user rosters |
+| **Multi select** | Click an avatar or select multiple messages, then **Copy / Delete / Forward** |
+| **Message Pinning** | Pin or unpin messages via context menu across DMs and groups |
+| **Delete Rules** | Native prompts support 'Delete for Me' vs 'Delete for Everyone' |
 | **Forward** | Forward selected messages to other users |
 | **Scroll history** | Loads messages in batches; scroll up to load more |
-| **Local storage** | All messages in JSON, all media in folders named `FullName$$UserId` |
+| **Native Modals** | Custom-built smooth dialogs safely replace awful browser alerts |
+| **Local DB Storage** | Messages & users persisted natively in lightning fast Async SQLite (WAL Mode) |
 | **Graceful shutdown** | Ctrl+C cleanly stops everything; port in use gives a clear error |
 
 ---
@@ -90,11 +95,11 @@ PHONE_NUMBER=+91XXXXXXXXXX
 
 > `API_ID` and `API_HASH` are free from [my.telegram.org](https://my.telegram.org) under API Development Tools.
 
-### 3. Add allowed users
-
-Open `src/config.py` and add Telegram user IDs:
-```python
-allowed_users = [123456789, 987654321]
+### 3. Add users directly
+Add users to your `.env` lists to allow or block them:
+```ini
+ALLOWED_USERS=123456789,987654321
+BANNED_USERS=11223344
 ```
 
 > Tip: Send `/start` to [@userinfobot](https://t.me/userinfobot) to get your user ID.
@@ -124,6 +129,9 @@ Visit **http://127.0.0.1:8080** in your browser. The page title will automatical
 | **Emoji** | Click 😊 button for the emoji picker |
 | **Select messages** | Click ☑ in the header, then click messages |
 | **Copy** | Select then **Copy** |
+| **Pin / Unpin** | Right-click (or click arrow on) a message bubble and select **Pin** |
+| **Group Management**| In groups, click the **ℹ️ (Info)** button for a member roster |
+| **Admin Actions** | In groups, right-click an incoming message to **Kick** or **Ban** the specific sender |
 | **Delete** | Select then **Delete** (removes from Telegram too) |
 | **Forward** | Select then **Forward**, pick user(s), **Send** |
 | **Resize sidebar** | Drag the right edge of the sidebar |
@@ -152,10 +160,12 @@ In `src/handlers.py`:
 
 In `.env`:
 
-| Variable | Required | Purpose |
+| Variable | Default | Purpose |
 |---|---|---|
 | `BOT_TOKEN` | ✅ Always | Telegram bot token from @BotFather |
 | `CREATE_USER_BOT` | ✅ Always | `True` to also monitor personal account DMs |
+| `ALLOWED_USERS` | ` ` | Comma-separated list of Telegram User IDs allowed to chat |
+| `BANNED_USERS` | ` ` | Comma-separated list of User IDs blocked |
 | `API_ID` | Only if `True` | From my.telegram.org |
 | `API_HASH` | Only if `True` | From my.telegram.org |
 | `PHONE_NUMBER` | Only if `True` | Your Telegram phone number |
@@ -166,6 +176,7 @@ In `.env`:
 ## 🔒 Security Notes
 
 - The web UI runs on **localhost only**, no authentication needed.
+- **SQL Injection Prevention:** Every single Database query utilizing your text or inputs routes through structural parameterized bindings `(?, ?, ...)` via the `aiosqlite` interface. Mathematical SQL injections are impossible—your SQLite Database strictly cannot be breached through standard malicious payloads!
 - Session files in `sessions/` give full access to your Telegram account. **Never share them.**
 - `.env` contains secrets, it's git ignored by default.
 - Profile photo cache in `data/avatars/` is also git ignored.
@@ -175,3 +186,9 @@ In `.env`:
 ## 📜 License
 
 MIT, use however you like.
+
+---
+
+## Author
+
+Made with ❤️ by [Aman](https://t.me/jarvisbyamanchannel)

@@ -14,6 +14,7 @@ from src.server import create_app
 
 
 async def main():
+    await storage.init()
     await storage.load_users()
     print("[+] storage loaded")
 

@@ -15,6 +15,11 @@ from src.config import messages_per_load, base_dir, data_dir
 from src.handlers import ws_clients, _notify_ws
 from src.storage import storage
 
+# register missing mimetypes
+mimetypes.add_type("image/webp", ".webp")
+mimetypes.add_type("video/webm", ".webm")
+mimetypes.add_type("application/x-tgsticker", ".tgs")
+
 web_dir = base_dir / "web"
 avatar_dir = data_dir / "avatars"
 avatar_dir.mkdir(exist_ok=True)
@@ -39,16 +44,13 @@ async def static_handler(request):
 # rest api
 
 async def api_get_users(request):
+    from src.config import banned_users
     users = storage.get_all_users()
     result = []
     for uid, u in users.items():
-        folder = storage.get_user_folder(uid)
-        last = None
-        if folder:
-            msgs = await storage._read_msgs(folder / "messages.json")
-            if msgs:
-                last = msgs[-1]
-        result.append({**u, "last_message": last})
+        msgs, _ = await storage.get_messages(uid, offset=0, limit=1)
+        last = msgs[0] if msgs else None
+        result.append({**u, "last_message": last, "is_banned": int(uid) in banned_users})
     result.sort(key=lambda x: x.get("last_seen", ""), reverse=True)
     return web.json_response(result)
 
@@ -157,15 +159,17 @@ async def api_delete_messages(request):
     data = await request.json()
     uid = data["user_id"]
     ids = data["msg_ids"]
+    for_everyone = data.get("for_everyone", True)
 
-    # try to delete from telegram (best effort, may fail for old msgs)
-    try:
-        await bot.delete_messages(int(uid), ids)
-    except Exception as exc:
-        print(f"[tg delete] {exc}")
+    if for_everyone:
+        try:
+            await bot.delete_messages(int(uid), ids)
+        except Exception as exc:
+            print(f"[tg delete] {exc}")
+            return web.json_response({"status": "error", "error": f"Failed to delete in Telegram: {exc}"}, status=400)
 
     await storage.delete_messages(uid, ids)
-    await _notify_ws({"type": "messages_deleted", "user_id": int(uid), "msg_ids": ids})
+    await _notify_ws({"type": "messages_deleted", "user_id": int(uid), "msg_ids": ids, "for_everyone": for_everyone})
     return web.json_response({"status": "ok"})
 
 
@@ -231,7 +235,10 @@ async def api_media(request):
     fp = folder / "media" / fname
     if not fp.exists():
         raise web.HTTPNotFound()
-    return web.FileResponse(fp)
+    ct, _ = mimetypes.guess_type(fname)
+    if not ct:
+        ct = "application/octet-stream"
+    return web.Response(body=fp.read_bytes(), content_type=ct)
 
 
 async def api_bot_info(request):
@@ -266,6 +273,199 @@ async def api_avatar(request):
     return web.FileResponse(cached)
 
 
+# ── reactions API ──────────────────────────────────────
+async def api_add_reaction(request):
+    """React to a message — also sends the reaction to Telegram."""
+    data = await request.json()
+    uid = int(data["user_id"])
+    msg_id = int(data["msg_id"])
+    emoji = data["emoji"]
+
+    msg = await storage.get_message_by_id(uid, msg_id)
+    current_my_reaction = None
+    if msg and "reactions" in msg:
+        current_my_reaction = msg["reactions"].get("me")
+
+    # Determine what to send to Telegram
+    try:
+        if current_my_reaction == emoji:
+            # Was toggled off — clear the bot's reaction on Telegram
+            await bot.set_reaction(uid, msg_id, emoji=None)
+            await storage.remove_reaction(uid, msg_id, "me")
+        else:
+            # Set the reaction on Telegram
+            await bot.set_reaction(uid, msg_id, emoji=emoji)
+            await storage.add_reaction(uid, msg_id, emoji, "me")
+    except Exception as exc:
+        print(f"[api_react] Failed: {exc}")
+        return web.json_response({"status": "error", "error": str(exc)}, status=400)
+
+    # Notify web UI
+    msg = await storage.get_message_by_id(uid, msg_id)
+    await _notify_ws({
+        "type": "reaction_update",
+        "user_id": uid,
+        "msg_id": msg_id,
+        "reactions": msg.get("reactions", {}) if msg else {},
+    })
+    return web.json_response({"status": "ok"})
+
+
+async def api_remove_reaction(request):
+    """Remove the bot's reaction from a message."""
+    data = await request.json()
+    uid = int(data["user_id"])
+    msg_id = int(data["msg_id"])
+
+    try:
+        await bot.set_reaction(uid, msg_id, emoji=None)
+        await storage.remove_reaction(uid, msg_id, "me")
+    except Exception as exc:
+        print(f"[api_unreact] Failed: {exc}")
+        return web.json_response({"status": "error", "error": str(exc)}, status=400)
+
+    msg = await storage.get_message_by_id(uid, msg_id)
+    await _notify_ws({
+        "type": "reaction_update",
+        "user_id": uid,
+        "msg_id": msg_id,
+        "reactions": msg.get("reactions", {}) if msg else {},
+    })
+    return web.json_response({"status": "ok"})
+
+
+# ── admin actions API ──────────────────────────────────
+async def api_ban_member(request):
+    data = await request.json()
+    chat_id = int(data["chat_id"])
+    user_id = int(data["user_id"])
+    try:
+        await bot.ban_member(chat_id, user_id)
+        return web.json_response({"status": "ok"})
+    except Exception as exc:
+        return web.json_response({"status": "error", "error": str(exc)}, status=400)
+
+async def api_unban_member(request):
+    data = await request.json()
+    chat_id = int(data["chat_id"])
+    user_id = int(data["user_id"])
+    try:
+        await bot.unban_member(chat_id, user_id)
+        return web.json_response({"status": "ok"})
+    except Exception as exc:
+        return web.json_response({"status": "error", "error": str(exc)}, status=400)
+
+async def api_pin_message(request):
+    data = await request.json()
+    chat_id = int(data["chat_id"])
+    msg_id = int(data["msg_id"])
+    try:
+        await bot.pin_message(chat_id, msg_id)
+        return web.json_response({"status": "ok"})
+    except Exception as exc:
+        return web.json_response({"status": "error", "error": str(exc)}, status=400)
+
+async def api_unpin_message(request):
+    data = await request.json()
+    chat_id = int(data["chat_id"])
+    msg_id = int(data["msg_id"])
+    try:
+        await bot.unpin_message(chat_id, msg_id)
+        return web.json_response({"status": "ok"})
+    except Exception as exc:
+        return web.json_response({"status": "error", "error": str(exc)}, status=400)
+
+from src.config import update_banned_users
+
+async def api_block_user(request):
+    data = await request.json()
+    user_id = data["user_id"]
+    from src.config import update_banned_users
+    update_banned_users(user_id, block=True)
+    return web.json_response({"status": "ok"})
+
+async def api_unblock_user(request):
+    data = await request.json()
+    user_id = data["user_id"]
+    from src.config import update_banned_users
+    update_banned_users(user_id, block=False)
+    return web.json_response({"status": "ok"})
+
+async def api_leave_group(request):
+    data = await request.json()
+    chat_id = int(data["chat_id"])
+    try:
+        await bot.leave_chat(chat_id)
+        return web.json_response({"status": "ok"})
+    except Exception as exc:
+        return web.json_response({"status": "error", "error": str(exc)}, status=400)
+
+
+async def api_group_info(request):
+    chat_id = int(request.match_info["chat_id"])
+    
+    # Get active members from local DB
+    msgs = storage._users.get(str(chat_id))
+    active = {}
+    if msgs:
+        all_m = await storage.get_all_messages(chat_id)
+        for m in all_m:
+            sid = m.get("sender_id")
+            if sid:
+                active[str(sid)] = m.get("sender_name", f"User {sid}")
+
+    count = 0
+    admins = []
+    try:
+        count = await bot.get_chat_member_count(chat_id)
+        admins = await bot.get_chat_administrators(chat_id)
+    except Exception as e:
+        print(f"[api_group_info] {e}")
+        pass
+        
+    return web.json_response({
+        "status": "ok", 
+        "member_count": count, 
+        "admins": admins,
+        "active_members": [{"id": k, "name": v} for k, v in active.items()]
+    })
+
+
+# ── edit history API ───────────────────────────────────
+async def api_edit_message(request):
+    """Edit a sent message's text. Old text is saved in edit_history."""
+    data = await request.json()
+    uid = int(data["user_id"])
+    msg_id = int(data["msg_id"])
+    new_text = data["text"]
+
+    await storage.edit_message(uid, msg_id, new_text)
+
+    # Also edit on Telegram (best effort)
+    try:
+        await bot.edit_message(uid, msg_id, new_text)
+    except Exception as exc:
+        print(f"[tg edit] {exc}")
+
+    msg = await storage.get_message_by_id(uid, msg_id)
+    await _notify_ws({
+        "type": "message_edited",
+        "user_id": uid,
+        "msg_id": msg_id,
+        "message": msg,
+    })
+    return web.json_response({"status": "ok", "message": msg})
+
+
+async def api_get_edit_history(request):
+    """Return edit history for a message."""
+    uid = request.match_info["user_id"]
+    msg_id = int(request.match_info["msg_id"])
+    msg = await storage.get_message_by_id(uid, msg_id)
+    history = msg.get("edit_history", []) if msg else []
+    return web.json_response({"edit_history": history})
+
+
 # websocket
 
 async def websocket_handler(request):
@@ -296,6 +496,24 @@ def create_app():
     app.router.add_post("/api/forward", api_forward_messages)
     app.router.add_post("/api/clear-unread", api_clear_unread)
     app.router.add_get("/api/media/{user_id}/{filename:.*}", api_media)
+
+    # reactions
+    app.router.add_post("/api/react", api_add_reaction)
+    app.router.add_post("/api/unreact", api_remove_reaction)
+
+    # edit
+    app.router.add_post("/api/edit-message", api_edit_message)
+    app.router.add_get("/api/edit-history/{user_id}/{msg_id}", api_get_edit_history)
+
+    # admin actions
+    app.router.add_post("/api/ban", api_ban_member)
+    app.router.add_post("/api/unban", api_unban_member)
+    app.router.add_post("/api/pin", api_pin_message)
+    app.router.add_post("/api/unpin", api_unpin_message)
+    app.router.add_post("/api/block", api_block_user)
+    app.router.add_post("/api/unblock", api_unblock_user)
+    app.router.add_post("/api/leave", api_leave_group)
+    app.router.add_get("/api/group-info/{chat_id}", api_group_info)
 
     app.router.add_get("/ws", websocket_handler)
 
