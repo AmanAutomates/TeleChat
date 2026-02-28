@@ -6,6 +6,18 @@ TeleChat monitors incoming DMs to your Telegram bot (and optionally your persona
 
 ---
 
+## 📸 Showcase
+
+<div align="center">
+  <img src="web/assets/img1.png" width="800" alt="TeleChat UI Screenshot 1"><br><br>
+  <img src="web/assets/img2.png" width="800" alt="TeleChat UI Screenshot 2"><br><br>
+  <img src="web/assets/img3.png" width="800" alt="TeleChat UI Screenshot 3"><br><br>
+  <img src="web/assets/img4.png" width="800" alt="TeleChat UI Screenshot 4"><br><br>
+  <img src="web/assets/img5.png" width="800" alt="TeleChat UI Screenshot 5">
+</div>
+
+---
+
 ## ✨ Features
 
 | Feature | Details |
@@ -35,7 +47,37 @@ TeleChat monitors incoming DMs to your Telegram bot (and optionally your persona
 
 ---
 
-## 📂 Project Structure
+## � Tech Stack
+
+- **Backend**: Python (`Telethon` for MTProto API, `aiohttp` for Web Server / WebSockets)
+- **Frontend**: Vanilla JavaScript, CSS, HTML5
+- **Database**: `aiosqlite` (Asynchronous SQLite with WAL Mode enabled for fast, concurrent I/O)
+
+---
+
+## 🎯 Motive
+
+**Original Motive (Privacy):** 
+Anyone with access to your Telegram account (e.g., on a shared physical desktop or a locally logged-in secondary device) can normally read your personal chats, invading your privacy. TeleChat completely solves this: since your main account is intentionally kept out of the loop, there is zero trace of the conversation on the official Telegram app. The authentic, private chat happens entirely off-record through your local Web UI, connecting you securely to the `allowed_user` exclusively via your Bot.
+
+
+**Current Motive (Government Regulations):** 
+As of March 1st, 2026, the Government of India released a SIM-binding security rule. A crucial clause dictates that desktop messaging applications will forcibly log out web/desktop users every 6 hours to prevent cybercrime. Continuously re-verifying logins is exhaustive. **This project bypasses that entirely.** Because TeleChat leverages a dedicated background bot/userbot session bound to APIs, you can chat continuously without needing to manually re-login to the official Telegram Desktop app every 6 hours!
+
+---
+
+## 🔄 How it Works (Flow)
+
+1. **Initial Contact**: An `ALLOWED_USER` messages your bot directly. (If `CREATE_USER_BOT` is True, it also catches DMs sent to your main account).
+2. **AFK Auto-Responder**: If they haven't interacted with you for over 2 hours, the bot automatically shoots them your customized AFK message.
+3. **WebUI Sync**: Their incoming message is instantly piped to your local SQLite Database and simultaneously bridged to your Web Interface (`localhost:8080`) over lightning-fast local WebSockets. 
+4. **Banned Users**: Anyone placed on the `BANNED_USERS` list is aggressively ignored. Their messages will never render in your web interface.
+5. **Two-Way Communication**: When you type a reply on your web interface, the backend Python server executes the send command via the Telegram API natively. 
+6. **Groups & Features**: Similar native group tracking is fully supported alongside full context actions like pinning, unpinning, kicking/banning, deleting (for everyone), replying, reacting, and forwarding natively via remote control from the local browser.
+
+---
+
+## �📂 Project Structure
 
 ```
 ├── .env                  # your credentials (create from .env.example)
