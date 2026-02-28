@@ -124,6 +124,9 @@ cp .env.example .env
 ```ini
 BOT_TOKEN=123456:ABC...
 CREATE_USER_BOT=False
+ALLOWED_USERS=123456789,987654321
+WEB_HOST=127.0.0.1
+WEB_PORT=8080
 ```
 
 **Full `.env` for userbot + bot mode:**
@@ -133,6 +136,9 @@ CREATE_USER_BOT=True
 API_ID=12345678
 API_HASH=abcdef1234567890
 PHONE_NUMBER=+91XXXXXXXXXX
+ALLOWED_USERS=123456789,987654321
+WEB_HOST=127.0.0.1
+WEB_PORT=8080
 ```
 
 > `API_ID` and `API_HASH` are free from [my.telegram.org](https://my.telegram.org) under API Development Tools.
@@ -189,10 +195,7 @@ All tunables live in `src/config.py`:
 | Variable | Default | Purpose |
 |---|---|---|
 | `messages_per_load` | `30` | Messages fetched per scroll batch |
-| `allowed_users` | `[]` | Telegram user IDs that can reach you |
 | `afk_message` | _"will reply very soon..."_ | Auto reply text |
-| `web_host` | `127.0.0.1` | Web server bind address |
-| `web_port` | `8080` | Web server port |
 
 In `src/handlers.py`:
 
@@ -211,6 +214,7 @@ In `.env`:
 | `API_ID` | Only if `True` | From my.telegram.org |
 | `API_HASH` | Only if `True` | From my.telegram.org |
 | `PHONE_NUMBER` | Only if `True` | Your Telegram phone number |
+| `WEB_HOST` | `127.0.0.1` | Web server bind address |
 | `WEB_PORT` | No (default 8080) | Web UI port |
 
 ---
