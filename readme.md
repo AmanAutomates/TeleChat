@@ -17,6 +17,9 @@ TeleChat monitors incoming DMs to your Telegram bot (and optionally your persona
 </div>
 
 ---
+## Update
+- haven't been working on this lately. pushing the last update i remember.
+- apolozies for unknown bugs and irrelevant docs 🙏
 
 ## ✨ Features
 
@@ -24,6 +27,7 @@ TeleChat monitors incoming DMs to your Telegram bot (and optionally your persona
 |---|---|
 | **Two modes** | **Bot only** (just `BOT_TOKEN`) or **Userbot + Bot** (monitors personal account too) |
 | **Smart AFK reply** | Auto-reply only on first contact or after 2h of silence, no spamming |
+| **Anonymous Input** | Enable `ANONYMOUS_INPUT=True` to accept DMs from non-whitelisted users |
 | **Profile photos** | Real Telegram DPs displayed in the chat sidebar and headers |
 | **Web chat UI** | Telegram style dark interface at `http://localhost:8080` |
 | **Dynamic branding** | UI title & logo auto-set from your bot's name, no hardcoded names |
@@ -32,15 +36,16 @@ TeleChat monitors incoming DMs to your Telegram bot (and optionally your persona
 | **Emoji picker** | Full emoji tray built into the chat input |
 | **Media support** | Photos, videos, audio, voice, documents, stickers with inline previews |
 | **File send** | Attach & send any file from the web UI |
-| **Reply to messages** | Double click a message to reply (uses `reply_to_message_id`) |
+| **Reply to messages** | Double click a message to reply (now featuring **Rich Reply Previews**) |
 | **Group Support** | Tracks group & supergroup conversations natively |
 | **Admin Actions** | Moderation tools (Kick/Ban users) built right into the UI for groups |
 | **Group Tracker** | Dedicated _Info_ button to display real-time active user rosters |
 | **Multi select** | Click an avatar or select multiple messages, then **Copy / Delete / Forward** |
-| **Message Pinning** | Pin or unpin messages via context menu across DMs and groups |
+| **Message Pinning** | Pin/unpin messages via context menu; interact via the new top **Pinned Message Bar** |
 | **Delete Rules** | Native prompts support 'Delete for Me' vs 'Delete for Everyone' |
 | **Forward** | Forward selected messages to other users |
 | **Scroll history** | Loads messages in batches; scroll up to load more |
+| **Smart Scroll Badge**| Floating scroll-to-bottom button dynamically tracks and clears unread messages |
 | **Native Modals** | Custom-built smooth dialogs safely replace awful browser alerts |
 | **Local DB Storage** | Messages & users persisted natively in lightning fast Async SQLite (WAL Mode) |
 | **Graceful shutdown** | Ctrl+C cleanly stops everything; port in use gives a clear error |
@@ -211,6 +216,7 @@ In `.env`:
 | `CREATE_USER_BOT` | ✅ Always | `True` to also monitor personal account DMs |
 | `ALLOWED_USERS` | ` ` | Comma-separated list of Telegram User IDs allowed to chat |
 | `BANNED_USERS` | ` ` | Comma-separated list of User IDs blocked |
+| `ANONYMOUS_INPUT` | `False` | Set to `True` to allow messages from anyone (bypassing allowed users) |
 | `API_ID` | Only if `True` | From my.telegram.org |
 | `API_HASH` | Only if `True` | From my.telegram.org |
 | `PHONE_NUMBER` | Only if `True` | Your Telegram phone number |

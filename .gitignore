@@ -7,3 +7,7 @@ __pycache__/
 *.session-journal
 ans.md
 tests/
+src/analyzer.py
+web/css/style1.css
+web/js/app1.js
+web/index1.html

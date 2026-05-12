@@ -54,6 +54,10 @@ class Storage:
                 )
             """)
             await db.execute("CREATE INDEX IF NOT EXISTS idx_messages_chat_time ON messages (chat_id, timestamp)")
+            try:
+                await db.execute("ALTER TABLE users ADD COLUMN pinned_msg_id INTEGER")
+            except Exception:
+                pass
             await db.commit()
 
     async def load_users(self):
@@ -72,8 +76,8 @@ class Storage:
         user = self._users[uid]
         async with aiosqlite.connect(db_path, timeout=30.0) as db:
             await db.execute("""
-                INSERT INTO users (user_id, first_name, last_name, username, full_name, type, folder_name, unread_count, last_seen, last_interaction)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO users (user_id, first_name, last_name, username, full_name, type, folder_name, unread_count, last_seen, last_interaction, pinned_msg_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET 
                     first_name=excluded.first_name,
                     last_name=excluded.last_name,
@@ -83,11 +87,13 @@ class Storage:
                     folder_name=excluded.folder_name,
                     unread_count=excluded.unread_count,
                     last_seen=excluded.last_seen,
-                    last_interaction=excluded.last_interaction
+                    last_interaction=excluded.last_interaction,
+                    pinned_msg_id=excluded.pinned_msg_id
             """, (
                 uid, user.get("first_name"), user.get("last_name"), user.get("username"),
                 user.get("full_name"), user.get("type"), user.get("folder_name"),
-                user.get("unread_count", 0), user.get("last_seen"), user.get("last_interaction")
+                user.get("unread_count", 0), user.get("last_seen"), user.get("last_interaction"),
+                user.get("pinned_msg_id")
             ))
             await db.commit()
 
@@ -163,7 +169,10 @@ class Storage:
         info = self._users.get(str(user_id))
         if info:
             info["unread_count"] = info.get("unread_count", 0) + 1
+            print(f"DEBUG: increment_unread user {user_id} -> {info['unread_count']}")
             await self._save_user_to_db(str(user_id))
+        else:
+            print(f"DEBUG: increment_unread user {user_id} NOT FOUND IN CACHE!")
 
     async def clear_unread(self, user_id):
         info = self._users.get(str(user_id))
@@ -175,6 +184,12 @@ class Storage:
         info = self._users.get(str(user_id))
         if info:
             info["last_interaction"] = datetime.now().isoformat()
+            await self._save_user_to_db(str(user_id))
+
+    async def set_pinned_message(self, user_id, msg_id):
+        info = self._users.get(str(user_id))
+        if info:
+            info["pinned_msg_id"] = msg_id
             await self._save_user_to_db(str(user_id))
 
 

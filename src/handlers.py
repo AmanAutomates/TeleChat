@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timedelta
 
 from src.clients import userbot, bot, is_http_bot
-from src.config import allowed_users, afk_message, create_user_bot, banned_users
+from src.config import allowed_users, afk_message, create_user_bot, banned_users, anonymous_input
 from src.storage import storage
 
 # websocket clients (populated by server.py)
@@ -28,6 +28,7 @@ async def _notify_ws(data: dict):
 
 def _should_send_afk(user_id) -> bool:
     """Only send afk reply on first contact or after cooldown period."""
+    return False
     info = storage.get_user(user_id)
     if not info:
         return True
@@ -96,7 +97,7 @@ async def _http_bot_handler(msg):
     chat = msg.chat if getattr(msg, 'chat', None) else msg.sender
     is_group = getattr(chat, 'type', 'private') in ('group', 'supergroup')
 
-    if not is_group and msg.sender.id not in allowed_users:
+    if not is_group and msg.sender.id not in allowed_users and not anonymous_input:
         print(f"DEBUG: blocked because not group and not allowed")
         return
 
@@ -184,7 +185,7 @@ def _setup_telethon_handlers():
         sender = await event.get_sender()
         if not sender or getattr(sender, "bot", False):
             return
-        if sender.id not in allowed_users:
+        if sender.id not in allowed_users and not anonymous_input:
             return
         if sender.id in banned_users:
             return
@@ -270,7 +271,7 @@ async def _http_edit_handler(msg):
     chat = msg.chat if getattr(msg, 'chat', None) else msg.sender
     is_group = getattr(chat, 'type', 'private') in ('group', 'supergroup')
 
-    if not is_group and msg.sender.id not in allowed_users:
+    if not is_group and msg.sender.id not in allowed_users and not anonymous_input:
         return
 
     new_text = getattr(msg, 'text', "") or ""

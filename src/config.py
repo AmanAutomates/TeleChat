@@ -26,6 +26,8 @@ allowed_users = [int(x.strip().strip("'\"")) for x in _au.split(",") if x.strip(
 _bu = os.getenv("banned_users", "")
 banned_users = [int(x.strip().strip("'\"")) for x in _bu.split(",") if x.strip().strip("'\"")] if _bu else []
 
+anonymous_input = os.getenv("anonymous_input", os.getenv("ANONYMOUS_INPUT", "False")).strip().lower() in ("true", "1", "yes")
+
 # afk auto reply
 afk_message = "will reply very soon if not afk (or not ignoring)"
 

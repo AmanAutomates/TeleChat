@@ -67,6 +67,14 @@ async def api_get_messages(request):
     })
 
 
+async def api_get_single_message(request):
+    """Return a single message by user_id and msg_id (for reply previews)."""
+    uid = request.match_info["user_id"]
+    msg_id = int(request.match_info["msg_id"])
+    msg = await storage.get_message_by_id(uid, msg_id)
+    return web.json_response({"message": msg})
+
+
 async def api_send_message(request):
     data = await request.json()
     uid = int(data["user_id"])
@@ -222,6 +230,7 @@ async def api_forward_messages(request):
 
 async def api_clear_unread(request):
     data = await request.json()
+    print(f"DEBUG: api_clear_unread called for user_id={data['user_id']}")
     await storage.clear_unread(data["user_id"])
     return web.json_response({"status": "ok"})
 
@@ -361,6 +370,8 @@ async def api_pin_message(request):
     msg_id = int(data["msg_id"])
     try:
         await bot.pin_message(chat_id, msg_id)
+        await storage.set_pinned_message(chat_id, msg_id)
+        await _notify_ws({"type": "pinned_updated", "user_id": chat_id, "pinned_msg_id": msg_id})
         return web.json_response({"status": "ok"})
     except Exception as exc:
         return web.json_response({"status": "error", "error": str(exc)}, status=400)
@@ -371,6 +382,8 @@ async def api_unpin_message(request):
     msg_id = int(data["msg_id"])
     try:
         await bot.unpin_message(chat_id, msg_id)
+        await storage.set_pinned_message(chat_id, None)
+        await _notify_ws({"type": "pinned_updated", "user_id": chat_id, "pinned_msg_id": None})
         return web.json_response({"status": "ok"})
     except Exception as exc:
         return web.json_response({"status": "error", "error": str(exc)}, status=400)
@@ -490,6 +503,7 @@ def create_app():
     app.router.add_get("/api/avatar/{user_id}", api_avatar)
     app.router.add_get("/api/users", api_get_users)
     app.router.add_get("/api/messages/{user_id}", api_get_messages)
+    app.router.add_get("/api/message/{user_id}/{msg_id}", api_get_single_message)
     app.router.add_post("/api/send", api_send_message)
     app.router.add_post("/api/upload", api_upload)
     app.router.add_delete("/api/messages", api_delete_messages)

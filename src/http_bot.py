@@ -61,6 +61,10 @@ class BotMessage:
         if "reply_to_message" in data:
             self.reply_to = BotReplyTo(data["reply_to_message"]["message_id"])
 
+        self.pinned_message = None
+        if "pinned_message" in data:
+            self.pinned_message = BotMessage(data["pinned_message"], bot)
+
         self.media_type = None
         self.media_file_id = None
         self._original_filename = None

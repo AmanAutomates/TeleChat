@@ -15,13 +15,32 @@ const s = {
   dragSelecting: false,
   contextMenuEl: null,
   contextMsgId: null,
-  groupMembers: {} // chat_id -> {id: name}
+  groupMembers: {}, // chat_id -> {id: name}
+  msgCache: {},      // chat_id -> { msg_id -> msg } — for reply previews
 };
+
+// Check if user is scrolled near the bottom of the messages panel
+function isNearBottom(threshold = 150) {
+  const el = messagesWrap;
+  if (!el) return true;
+  return (el.scrollHeight - el.scrollTop - el.clientHeight) <= threshold;
+}
+
+// cache a message for reply preview lookup
+function cacheMsg(chatId, msg) {
+  const cid = String(chatId);
+  if (!s.msgCache[cid]) s.msgCache[cid] = {};
+  s.msgCache[cid][msg.msg_id] = msg;
+}
+function getCachedMsg(chatId, msgId) {
+  const cid = String(chatId);
+  return s.msgCache[cid] && s.msgCache[cid][msgId] || null;
+}
 
 // frequent emojis (default tab)
 const frequent_emojis = ['😭', '🙂', '😐', '😅', '😂', '🙃', '👀', '💀', '🥲', '🙏', '🙄', '🫡', '🔥', '😏', '😕', '🥹', '😒', '😫', '🫠', '☠️', '😔', '😈', '😊', '😱', '😮‍💨', '🙁', '❤️', '🤣', '😌', '😞'];
 // quick react row in context menu
-const quick_reactions = ['👍', '❤️', '🤣', '😱', '😢', '😭', '🔥', '🙏'];
+const quick_reactions = ['👍', '❤️', '🤣', '😁', '😱', '😢', '😭', '🔥', '🙏'];
 
 // avatar colours
 const palette = [
@@ -63,6 +82,21 @@ const headerName = $('headerName');
 const headerStatus = $('headerStatus');
 const messagesEl = $('messages');
 const messagesWrap = $('messagesWrap');
+const scrollDownBtn = $('scrollDownBtn');
+const scrollBadge = $('scrollBadge');
+const pinnedBar = $('pinnedBar');
+const pinnedContent = $('pinnedContent');
+let unreadBelow = 0;
+
+function updateScrollBadge() {
+  if (unreadBelow > 0) {
+    scrollBadge.textContent = unreadBelow;
+    scrollBadge.classList.remove('hidden');
+  } else {
+    scrollBadge.classList.add('hidden');
+  }
+}
+
 const loadMoreDiv = $('loadMore');
 const loadMoreBtn = $('loadMoreBtn');
 const msgInput = $('msgInput');
@@ -100,7 +134,17 @@ const groupInfoModal = $('groupInfoModal');
 const groupInfoBody = $('groupInfoBody');
 
 // API helpers
+function linkify(text) {
+  if (!text) return '';
+  const escaped = esc(text);
+  const urlRegex = /(https?:\/\/[^\s<]+)/g;
+  return escaped.replace(urlRegex, function (url) {
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link">${url}</a>`;
+  });
+}
+
 async function api(url, opts = {}) {
+  opts.cache = 'no-store'; // Fix: prevent aggressive browser caching that hides unread badges
   const r = await fetch(url, opts);
   const data = await r.json();
   if (data.status === 'error') {
@@ -121,23 +165,39 @@ function connectWS() {
     if (d.type === 'messages_deleted') onMessagesDeleted(d);
     if (d.type === 'reaction_update') onReactionUpdate(d);
     if (d.type === 'message_edited') onMessageEdited(d);
+    if (d.type === 'pinned_updated') onPinnedUpdated(d);
   };
   s.ws.onclose = () => setTimeout(connectWS, 2000);
 }
 
-function onNewMessage(d) {
+function onPinnedUpdated(d) {
   refreshUsers();
   if (String(d.user_id) === String(s.currentUserId)) {
-    appendMessage(d.message);
-    scrollBottom();
-    clearUnread(d.user_id);
+    updatePinnedBar(d.pinned_msg_id);
   }
+}
+
+function onNewMessage(d) {
+  if (String(d.user_id) === String(s.currentUserId)) {
+    cacheMsg(d.user_id, d.message);
+    const wasNearBottom = isNearBottom(150);
+    appendMessage(d.message);
+    if (wasNearBottom) {
+      scrollBottom();
+      clearUnread(d.user_id);
+    } else {
+      unreadBelow++;
+      updateScrollBadge();
+    }
+  }
+  refreshUsers();
 }
 function onMessageSent(d) {
   refreshUsers();
   if (String(d.user_id) === String(s.currentUserId)) {
+    cacheMsg(d.user_id, d.message);
     appendMessage(d.message);
-    scrollBottom();
+    scrollBottom(); // always scroll for own sent messages
   }
 }
 function onMessagesDeleted(d) {
@@ -246,6 +306,9 @@ async function selectChat(userId) {
   s.selecting = false;
   s.replyTo = null;
   s.pendingFiles = [];
+  unreadBelow = 0;
+  updateScrollBadge();
+  scrollDownBtn.classList.add('hidden');
   selectionBar.classList.add('hidden');
   replyBar.classList.add('hidden');
   filePreviewBar.classList.add('hidden');
@@ -265,6 +328,8 @@ async function selectChat(userId) {
   } else {
     groupInfoBtn.classList.add('hidden');
   }
+
+  updatePinnedBar(u.pinned_msg_id || null);
 
   // show chat
   noChat.classList.add('hidden');
@@ -294,6 +359,9 @@ async function loadMessages(prepend = true) {
   s.hasMore = data.has_more;
   loadMoreDiv.classList.toggle('hidden', !s.hasMore);
   s.offset += data.messages.length;
+
+  // cache all loaded messages for reply previews
+  data.messages.forEach(m => cacheMsg(s.currentUserId, m));
 
   if (prepend && data.messages.length) {
     const prevH = messagesWrap.scrollHeight;
@@ -401,9 +469,9 @@ function createMsgBubble(m) {
     html += `<div class="msg-fwd">↗️ Forwarded from ${esc(m.forwarded_from)}</div>`;
   }
 
-  // reply
+  // reply — show rich preview of replied-to message
   if (m.reply_to) {
-    html += `<div class="msg-reply" data-reply="${m.reply_to}">↩ Reply to #${m.reply_to}</div>`;
+    html += `<div class="msg-reply" data-reply="${m.reply_to}"><div class="reply-preview-content" data-reply-id="${m.reply_to}"><span class="reply-loading">↩ Loading…</span></div></div>`;
   }
 
   // media
@@ -429,7 +497,7 @@ function createMsgBubble(m) {
 
   // text
   if (m.text) {
-    html += `<div class="msg-text">${esc(m.text)}</div>`;
+    html += `<div class="msg-text">${linkify(m.text)}</div>`;
   }
 
   // reactions
@@ -443,11 +511,25 @@ function createMsgBubble(m) {
 
   div.innerHTML = html;
 
+  // populate reply preview
+  if (m.reply_to) {
+    const previewEl = div.querySelector('.reply-preview-content');
+    if (previewEl) fillReplyPreview(previewEl, m.reply_to);
+  }
+
   // reply link click
   const replyEl = div.querySelector('.msg-reply');
   if (replyEl) {
-    replyEl.addEventListener('click', () => {
-      const target = document.querySelector(`.msg-row[data-id="${m.reply_to}"]`);
+    replyEl.addEventListener('click', async () => {
+      let target = document.querySelector(`.msg-row[data-id="${m.reply_to}"]`);
+      if (!target) {
+        replyEl.style.opacity = '0.5';
+        while (!target && s.hasMore) {
+          await loadMessages(true);
+          target = document.querySelector(`.msg-row[data-id="${m.reply_to}"]`);
+        }
+        replyEl.style.opacity = '1';
+      }
       if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
         target.style.outline = '2px solid var(--accent)';
@@ -547,7 +629,91 @@ function updateReactionsDisplay(bubble, reactions, reactorNames, msgId) {
 function appendMessage(m) {
   // avoid duplicates
   if (messagesEl.querySelector(`.msg-row[data-id="${m.msg_id}"]`)) return;
+  cacheMsg(s.currentUserId, m);
   messagesEl.appendChild(createMsgRow(m));
+}
+
+// Build a pretty reply preview from a replied-to message
+function replyPreviewHtml(repliedMsg) {
+  const senderName = repliedMsg.sender_name || (repliedMsg.direction === 'out' ? 'You' : 'User');
+  const sCol = repliedMsg.sender_id ? avatarColor(repliedMsg.sender_id) : 'var(--accent)';
+  let content = '';
+  if (repliedMsg.media_type) {
+    const mediaIcons = { photo: '🖼 Photo', video: '📹 Video', audio: '🎵 Audio', voice: '🎤 Voice', sticker: '🎭 Sticker', video_sticker: '🎭 Sticker', animated_sticker: '🎭 Sticker', document: '📄 Document', video_note: '📹 Video Note' };
+    content = mediaIcons[repliedMsg.media_type] || '📎 Media';
+    if (repliedMsg.text) content += ' — ' + repliedMsg.text.slice(0, 60);
+  } else {
+    content = repliedMsg.text ? repliedMsg.text.slice(0, 80) : '…';
+  }
+  return `<span class="reply-sender" style="color:${sCol}">${esc(senderName)}</span><span class="reply-body">${esc(content)}</span>`;
+}
+
+// Fill a reply preview element — try cache first, then API
+async function fillReplyPreview(el, replyMsgId) {
+  const cached = getCachedMsg(s.currentUserId, replyMsgId);
+  if (cached) {
+    el.innerHTML = replyPreviewHtml(cached);
+    return;
+  }
+  // Fetch from API
+  try {
+    const data = await api(`/api/message/${s.currentUserId}/${replyMsgId}`);
+    if (data.message) {
+      cacheMsg(s.currentUserId, data.message);
+      el.innerHTML = replyPreviewHtml(data.message);
+    } else {
+      el.innerHTML = `<span class="reply-body">↩ Deleted message</span>`;
+    }
+  } catch {
+    el.innerHTML = `<span class="reply-body">↩ Message #${replyMsgId}</span>`;
+  }
+}
+
+async function updatePinnedBar(msgId) {
+  if (!msgId) {
+    pinnedBar.classList.add('hidden');
+    pinnedContent.innerHTML = '';
+    pinnedBar.onclick = null;
+    return;
+  }
+
+  pinnedBar.classList.remove('hidden');
+  pinnedContent.textContent = 'Loading...';
+
+  // fetch and fill
+  let m = getCachedMsg(s.currentUserId, msgId);
+  if (!m) {
+    try {
+      const resp = await api(`/api/message/${s.currentUserId}/${msgId}`);
+      m = resp.message;
+      if (m) cacheMsg(s.currentUserId, m);
+    } catch { }
+  }
+
+  if (m) {
+    const rawContent = m.media_type ? `📎 ${m.media_type} ${m.text || ''}` : (m.text || 'Pinned Message');
+    pinnedContent.textContent = rawContent.slice(0, 80);
+  } else {
+    pinnedContent.innerHTML = '<i>Deleted message</i>';
+  }
+
+  // click to scroll
+  pinnedBar.onclick = async () => {
+    let target = document.querySelector(`.msg-row[data-id="${msgId}"]`);
+    if (!target) {
+      pinnedBar.style.opacity = '0.5';
+      while (!target && s.hasMore) {
+        await loadMessages(true);
+        target = document.querySelector(`.msg-row[data-id="${msgId}"]`);
+      }
+      pinnedBar.style.opacity = '1';
+    }
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.style.outline = '2px solid var(--accent)';
+      setTimeout(() => target.style.outline = '', 1500);
+    }
+  };
 }
 
 function scrollBottom(instant = false) {
@@ -555,6 +721,30 @@ function scrollBottom(instant = false) {
     messagesWrap.scrollTo({ top: messagesWrap.scrollHeight, behavior: instant ? 'auto' : 'smooth' });
   }, 50);
 }
+
+messagesWrap.addEventListener('scroll', () => {
+  if (isNearBottom(150)) {
+    scrollDownBtn.classList.add('hidden');
+    if (unreadBelow > 0) {
+      unreadBelow = 0;
+      updateScrollBadge();
+      clearUnread(s.currentUserId);
+      refreshUsers();
+    }
+  } else {
+    scrollDownBtn.classList.remove('hidden');
+  }
+});
+
+scrollDownBtn.addEventListener('click', () => {
+  scrollBottom(false);
+  if (unreadBelow > 0) {
+    unreadBelow = 0;
+    updateScrollBadge();
+    clearUnread(s.currentUserId);
+    refreshUsers();
+  }
+});
 
 // context menu
 function showContextMenu(e, m, row) {
@@ -680,21 +870,29 @@ function showContextMenu(e, m, row) {
 
   document.body.appendChild(menu);
 
-  // position
-  menu.style.maxHeight = (window.innerHeight - 16) + 'px';
-  menu.style.overflowY = 'auto';
+  // position — measure natural size first
   const rect = menu.getBoundingClientRect();
+  const pad = 8;
 
   let x = e.clientX !== undefined ? e.clientX : (e.touches && e.touches.length > 0 ? e.touches[0].clientX : window.innerWidth / 2);
   let y = e.clientY !== undefined ? e.clientY : (e.touches && e.touches.length > 0 ? e.touches[0].clientY : window.innerHeight / 2);
 
-  if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 8;
-  if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 8;
-  if (x < 0) x = 8;
-  if (y < 0) y = 8;
+  // clamp horizontal
+  if (x + rect.width > window.innerWidth - pad) x = window.innerWidth - rect.width - pad;
+  if (x < pad) x = pad;
+
+  // clamp vertical — prefer showing below cursor, shift up if needed
+  if (y + rect.height > window.innerHeight - pad) {
+    y = window.innerHeight - rect.height - pad;
+  }
+  if (y < pad) y = pad;
 
   menu.style.left = x + 'px';
   menu.style.top = y + 'px';
+
+  // constrain max height so it never overflows the viewport from its final position
+  menu.style.maxHeight = (window.innerHeight - y - pad) + 'px';
+  menu.style.overflowY = 'auto';
 
   // mark arrow active
   const hoverWrap = row.querySelector('.msg-hover-actions');
